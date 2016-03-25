@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html class="no-js">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>New Project</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- <link rel="stylesheet" href="/built/css/main.css"> -->
+    <style>
+      body{
+        padding: 0px;
+        margin: 0px;
+
+      }
+</style>
+  </head>
+  <body>
+    <div id="container"></div>
+  </body>
+
+  <script id="fragShader" type="x-shader/x-fragment">
+      varying vec2 vUv;
+      uniform sampler2D tex;
+
+      void main() {
+        gl_FragColor = texture2D(tex, vUv);
+      }
+  </script>
+
+  <script id="vertexShader" type="x-shader/x-vertex">
+      varying vec2 vUv;
+      // varying vec3 vecPos;
+      // varying vec3 vecNormal;
+
+      vec4 zoom = vec4(1.005,1.005,1.0,1.0);
+      void main() {
+        vUv = uv;
+        // vecPos = (modelMatrix * vec4(position, 1.0)).xyz;
+        // vecNormal = (modelMatrix * vec4(normal, 0.0)).xyz;
+        gl_Position =  projectionMatrix * modelViewMatrix* vec4( position, 1.0 );
+
+      }
+  </script>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.2/jquery.min.js"></script>
+  <script type="text/javascript" src="lexer.js"></script>
+  <script type="text/javascript" src="lexicon.js_"></script>
+  <script type="text/javascript" src="POSTagger.js"></script>
+  <script src="three.min.js"></script>
+  <script src="OrbitControlsNew.js"></script>
+  <script src="main.js"></script>
+</html>
