@@ -18,7 +18,7 @@ document.addEventListener('mousedown', onDocumentMouseDown, false);
 
 function onDocumentMouseDown(event){
 	//console.log(camControls);
-	 	console.log(scene.children.length);
+	 	console.log(scene.children);
 }
 
 
@@ -66,11 +66,15 @@ function animate(){
 	render();
 
 	for (var i = 0; i<scene.children.length; i++){
-		scene.children[i].translateZ(-inc);
+		scene.children[i].position.z -= 5 ;
 
 		if(scene.children[i].position.z < -50000){
 			scene.children[i].position.z = 1000;
 		}
+
+		scene.children[i].scale.x += 0.002;
+		scene.children[i].scale.y += 0.002;
+
 	}
 }
 
@@ -168,6 +172,11 @@ recognizer.onresult = function(event){
 						plane.position.set(randX,randY,spacing);
 						if(scene.children.length>=35){
 							 scene.children.splice(-i,1);
+						}
+						if(plane.position.x < 0){
+							plane.rotation.y = 45;
+						} else{
+							plane.rotation.y = -45;
 						}
 
 						scene.add(plane);	
