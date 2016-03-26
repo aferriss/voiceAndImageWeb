@@ -4,8 +4,8 @@
 //   this.length = from < 0 ? this.length + from : from;
 //   return this.push.apply(this, rest);
 // };
-
-var proxyUrl = "http://localhost/~adamferriss/getNouns/proxy.php?url=";
+				
+var proxyUrl = "http://localhost/voiceAndImageWeb/proxy.php?url=";
 
 var container, scene, renderer, controls, camera, light, plane, shader, loader;
 var w = window.innerWidth;
@@ -18,8 +18,7 @@ document.addEventListener('mousedown', onDocumentMouseDown, false);
 
 function onDocumentMouseDown(event){
 	//console.log(camControls);
-	 console.log(scene.children.length);
-
+	 	console.log(scene.children.length);
 }
 
 
@@ -28,10 +27,6 @@ init();
 
 function init(){
 	scene = new THREE.Scene();
-
-	// light = new THREE.PointLight(0xf2023e);
-	// light.position.set(0,100,100);
-	// scene.add(light);
 
 	loader = new THREE.TextureLoader();
 
@@ -43,7 +38,7 @@ function init(){
 		fragmentShader: document.getElementById('fragShader').textContent
 	});
 
-	camera = new THREE.PerspectiveCamera(45, w/h, 0.1,40000);
+	camera = new THREE.PerspectiveCamera(45, w/h, 0.1,10000);
 	camera.position.z = 500;
 
 	var screenGeometry = new THREE.PlaneBufferGeometry( w,h );
@@ -51,24 +46,32 @@ function init(){
 	plane.position.set(0,0,-1000);
 	scene.add(plane);	
 
-	renderer = new THREE.WebGLRenderer();
+	renderer = new THREE.WebGLRenderer({ alpha: true });
+	renderer.clearColor( 0xffffff, 0);
 	renderer.setSize(w, h);
 	container.appendChild( renderer.domElement);
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 	controls.enableDamping = true;
 	controls.dampingFactor = 0.925;
-	controls.enableZoom = true;
-	// scene.add(controls);
-	
+	controls.enableZoom = true;	
 
 	animate();
 }
 
+var inc = 5;
 function animate(){
 	window.requestAnimationFrame(animate);
 	controls.update();
 	render();
+
+	for (var i = 0; i<scene.children.length; i++){
+		scene.children[i].translateZ(-inc);
+
+		if(scene.children[i].position.z < -50000){
+			scene.children[i].position.z = 1000;
+		}
+	}
 }
 
 function render(){
@@ -80,6 +83,7 @@ function loadImage(path, width, height, target) {
     $('<img src="'+ path +'">').load(function() {
       $(this).width(width).height(height).appendTo(target);
     });
+    console.log(path);
 }
 
 
@@ -131,7 +135,6 @@ recognizer.onresult = function(event){
 			},
 			timeout: 30000,
 			success: function(resp){
-				// console.log("success!");
 				var parsed = JSON.parse(resp);
 				// console.log(parsed.results.length);
 				var urls = [];
@@ -139,12 +142,14 @@ recognizer.onresult = function(event){
 					var url = parsed.results[i].image;
 					urls.push(url);
 				}
+				// loadImage(urls[0], 400,300,"body");
 				var parsedUrls = parseHtml(urls);
-				var spacing = 2000;
+				var spacing = -1000;
 				var textures = [];
+				
+
 				for(var i =0; i<parsedUrls.length; i++){
 					// loadImage(parsedUrls[i],400,300, "body");
-
 					loader.load(parsedUrls[i], function(texture){
 						var shade =  new THREE.ShaderMaterial({
 							uniforms:{
@@ -154,14 +159,17 @@ recognizer.onresult = function(event){
 							fragmentShader: document.getElementById('fragShader').textContent
 						});
 
-						textures.push(texture);
+						// textures.push(texture);
 						// shade.uniforms.tex.value = texture;
 						var screenGeometry = new THREE.PlaneBufferGeometry( w,h );
 						var plane = new THREE.Mesh(screenGeometry, shade);
-						plane.position.set(0,0,spacing);
+						var randX = (Math.random()*w)-w/2;
+						var randY = (Math.random()*h)-h/2;
+						plane.position.set(randX,randY,spacing);
 						if(scene.children.length>=35){
 							 scene.children.splice(-i,1);
 						}
+
 						scene.add(plane);	
 						spacing+=2000;
 
