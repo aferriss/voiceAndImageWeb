@@ -90,6 +90,7 @@ function init(){
 
 var inc = 5;
 var counter = 1;
+var opacityCounter = 1;
 function animate(){
 	window.requestAnimationFrame(animate);
 	controls.update();
@@ -108,8 +109,9 @@ function animate(){
 		// scene.children[i].scale.y += 0.002;
 
 	}
-
+	$("#wordBox").css('opacity', opacityCounter);
 	counter++;
+	opacityCounter-=0.0009;
 }
 
 function render(){
@@ -141,7 +143,7 @@ recognizer.onresult = function(event){
 	var saidText = event.results[event.results.length-1][0].transcript;
 	$("#wordBox").empty().append(saidText.toUpperCase());
 	$("#wordBox").fadeTo(10,1,function(){
-		$("#wordBox").fadeTo(22000,0);
+		// $("#wordBox").fadeTo(22000,0);
 	});
 	
 	var words = lexer.lex(saidText);
@@ -170,16 +172,20 @@ recognizer.onresult = function(event){
 		$("#wordBox").empty().append(saidText.toUpperCase());
 	}
 	if (indWords.length >0){
+		
+		
+				
 		$.ajax({
 			type: 'POST',
 			url: 'getData.php',
 			async: true,
 			cache: false,
 			data: {
-				text: nouns
+				text: saidText
 			},
 			timeout: 30000,
 			success: function(resp){
+
 				var parsed = JSON.parse(resp);
 				// console.log(parsed.results.length);
 				var urls = [];
@@ -192,10 +198,15 @@ recognizer.onresult = function(event){
 				var spacing = 0;
 				var textures = [];
 				
-
-				for(var i =0; i<parsedUrls.length; i++){
+				var numImages = 1;
+				for(var i =0; i<numImages; i++){
 					// loadImage(parsedUrls[i],400,300, "body");
-					loader.load(parsedUrls[i], function(texture){
+					var randUrl = Math.floor(Math.random()*parsedUrls.length);
+					loader.load(parsedUrls[randUrl], function(texture){
+						
+						//delete all old images
+						scene.children = [];
+						opacityCounter = 1
 						var shade =  new THREE.ShaderMaterial({
 							uniforms:{
 								tex: {type: 't', value: texture}
@@ -206,17 +217,17 @@ recognizer.onresult = function(event){
 
 						// textures.push(texture);
 						// shade.uniforms.tex.value = texture;
-						
+
 						var screenGeometry = new THREE.PlaneBufferGeometry( w,h );
 						var plane = new THREE.Mesh(screenGeometry, shade);
-						var randX = (Math.random()*w*2)-w;
-						var randY = (Math.random()*h*2)-h;
+						var randX =0;// (Math.random()*w*2)-w;
+						var randY =0;// (Math.random()*h*2)-h;
 
 						plane.position.set(randX,randY,spacing);
 						
-						if(scene.children.length>=35){
-							 scene.children.splice(-i,1);
-						}
+						// if(scene.children.length>=35){
+						// 	 scene.children.splice(-i,1);
+						// }
 						// if(plane.position.x < 0){
 						// 	plane.rotation.y = 45;
 						// } else{
