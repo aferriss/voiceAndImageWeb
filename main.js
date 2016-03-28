@@ -4,10 +4,13 @@
 //   this.length = from < 0 ? this.length + from : from;
 //   return this.push.apply(this, rest);
 // };
+
 				
-var proxyUrl = "http://localhost/voiceAndImageWeb/proxy.php?url=";
+var proxyUrl = "http://localhost/~adamferriss/getNouns/proxy.php?url=";
 
 var container, scene, renderer, controls, camera, light, plane, shader, loader;
+var orthoScene, orthoCamera, rtt, maskShader;
+
 var w = window.innerWidth;
 var h = window.innerHeight;
 
@@ -15,38 +18,64 @@ container = document.getElementById('container');
 
 
 document.addEventListener('mousedown', onDocumentMouseDown, false);
+window.addEventListener( 'resize', onWindowResize, false );
 
 function onDocumentMouseDown(event){
 	//console.log(camControls);
-	 	console.log(scene.children);
+	 	// console.log(scene.children);
+}
+
+function onWindowResize() {
+	renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
 
 init();
-
+var imp;
 
 function init(){
-	scene = new THREE.Scene();
 
+	scene = new THREE.Scene();
+	orthoScene = new THREE.Scene();
+
+	rtt = new THREE.WebGLRenderTarget( w,h, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
 	loader = new THREE.TextureLoader();
+
 
 	shader = new THREE.ShaderMaterial({
 		uniforms:{
 			tex: {type: 't', value: loader.load('water.jpg')}
 		},
 		vertexShader: document.getElementById('vertexShader').textContent,
-		fragmentShader: document.getElementById('fragShader').textContent
+		fragmentShader: document.getElementById('fragShader').textContent,
+		side:THREE.DoubleSide
+	});
+
+	maskShader = new THREE.ShaderMaterial({
+		uniforms:{
+			tex0: {type: 't', value: loader.load('images/mask.png')},
+			tex1: {type: 't', value: rtt }
+		},
+		vertexShader: document.getElementById('vertexShader').textContent,
+		fragmentShader: document.getElementById('maskShader').textContent,
+		side:THREE.DoubleSide
 	});
 
 	camera = new THREE.PerspectiveCamera(45, w/h, 0.1,10000);
 	camera.position.z = 500;
+
+	orthoCamera = new THREE.OrthographicCamera(w/-2, w/2,  h/2, h/-2, -20000, 20000);
+
 
 	var screenGeometry = new THREE.PlaneBufferGeometry( w,h );
 	var plane = new THREE.Mesh(screenGeometry, shader);
 	plane.position.set(0,0,-1000);
 	scene.add(plane);	
 
-	renderer = new THREE.WebGLRenderer({ alpha: true });
+	var orthoPlane = new THREE.Mesh(screenGeometry, maskShader);
+	orthoScene.add(orthoPlane);
+
+	renderer = new THREE.WebGLRenderer({ alpha: true , antiAlias: true});
 	renderer.clearColor( 0xffffff, 0);
 	renderer.setSize(w, h);
 	container.appendChild( renderer.domElement);
@@ -60,6 +89,7 @@ function init(){
 }
 
 var inc = 5;
+var counter = 1;
 function animate(){
 	window.requestAnimationFrame(animate);
 	controls.update();
@@ -68,19 +98,23 @@ function animate(){
 	for (var i = 0; i<scene.children.length; i++){
 		scene.children[i].position.z -= 5 ;
 
-		if(scene.children[i].position.z < -50000){
-			scene.children[i].position.z = 1000;
+		if(scene.children[i].position.z < -10050){
+			 // scene.children[i].position.z = 1000;
+			// scene.children.splice(-i,1);
+			 scene.remove(scene.children[i]);
 		}
-
-		scene.children[i].scale.x += 0.002;
-		scene.children[i].scale.y += 0.002;
+		// scene.children[i].rotation.y = counter*0.1;
+		// scene.children[i].scale.x += 0.002;
+		// scene.children[i].scale.y += 0.002;
 
 	}
+
+	counter++;
 }
 
 function render(){
-
-	renderer.render(scene, camera);
+	renderer.render(scene, camera, rtt, false);
+	renderer.render(orthoScene, orthoCamera);
 }
 
 function loadImage(path, width, height, target) {
@@ -105,8 +139,13 @@ recognizer.interimResults = false;
 recognizer.onresult = function(event){
 	var said = [];
 	var saidText = event.results[event.results.length-1][0].transcript;
-	 var words = lexer.lex(saidText);
-	 var taggedWords = tagger.tag(words);
+	$("#wordBox").empty().append(saidText.toUpperCase());
+	$("#wordBox").fadeTo(10,1,function(){
+		$("#wordBox").fadeTo(22000,0);
+	});
+	
+	var words = lexer.lex(saidText);
+	var taggedWords = tagger.tag(words);
 	var nouns = "";
 	var indWords = [];
 	for (var i in taggedWords){
@@ -127,6 +166,8 @@ recognizer.onresult = function(event){
 	if(indWords.length == 0){
 		nouns = "question mark";
 		indWords.push(nouns);
+		saidText = "???????";
+		$("#wordBox").empty().append(saidText.toUpperCase());
 	}
 	if (indWords.length >0){
 		$.ajax({
@@ -148,7 +189,7 @@ recognizer.onresult = function(event){
 				}
 				// loadImage(urls[0], 400,300,"body");
 				var parsedUrls = parseHtml(urls);
-				var spacing = -1000;
+				var spacing = 0;
 				var textures = [];
 				
 
@@ -165,19 +206,22 @@ recognizer.onresult = function(event){
 
 						// textures.push(texture);
 						// shade.uniforms.tex.value = texture;
+						
 						var screenGeometry = new THREE.PlaneBufferGeometry( w,h );
 						var plane = new THREE.Mesh(screenGeometry, shade);
-						var randX = (Math.random()*w)-w/2;
-						var randY = (Math.random()*h)-h/2;
+						var randX = (Math.random()*w*2)-w;
+						var randY = (Math.random()*h*2)-h;
+
 						plane.position.set(randX,randY,spacing);
+						
 						if(scene.children.length>=35){
 							 scene.children.splice(-i,1);
 						}
-						if(plane.position.x < 0){
-							plane.rotation.y = 45;
-						} else{
-							plane.rotation.y = -45;
-						}
+						// if(plane.position.x < 0){
+						// 	plane.rotation.y = 45;
+						// } else{
+						// 	plane.rotation.y = -45;
+						// }
 
 						scene.add(plane);	
 						spacing+=2000;
