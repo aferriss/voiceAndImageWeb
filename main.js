@@ -25,10 +25,14 @@ container = document.getElementById('container');
 document.addEventListener('mousedown', onDocumentMouseDown, false);
 window.addEventListener( 'resize', onWindowResize, false );
 
+var mmi = 0;
 function onDocumentMouseDown(event){
 	//console.log(camControls);
 	 	// console.log(scene.children);
-	 	console.log(threshShader.uniforms.tex.value);
+	 	// console.log(threshShader.uniforms.tex.value);
+	 	console.log(waterTex);
+
+
 }
 
 function onWindowResize() {
@@ -38,7 +42,15 @@ function onWindowResize() {
 
 init();
 var imp;
-
+// var im;
+// function test(){
+// 	var loader = new THREE.TextureLoader();
+// 	im = loader.load('water.jpg', function(tex){
+// 		console.log(tex);
+// 	});
+// }
+// test();
+var waterTex;
 function init(){
 
 	scene = new THREE.Scene();
@@ -47,17 +59,23 @@ function init(){
 	blurVScene = new THREE.Scene();
 	colorSepScene = new THREE.Scene();
 
-	rtt = new THREE.WebGLRenderTarget( w,h, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
-	blurHTex = new THREE.WebGLRenderTarget(w, h, {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
-	blurVTex = new THREE.WebGLRenderTarget(w, h, {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
-	colorSepTex = new THREE.WebGLRenderTarget(w, h, {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
-
 	loader = new THREE.TextureLoader();
 
+	waterTex = loader.load('water.jpg', function(tex){
+		tex.minFilter = THREE.LinearMipMapNearestFilter;
+		tex.magFilter = THREE.NearestFilter;
+		console.log(tex);
+	});
+
+	rtt = new THREE.WebGLRenderTarget( 1024,1024, { minFilter: THREE.LinearMipMapLinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
+	blurHTex = new THREE.WebGLRenderTarget(1024, 1024, {minFilter: THREE.LinearMipMapLinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
+	blurVTex = new THREE.WebGLRenderTarget(1024, 1024, {minFilter: THREE.LinearMipMapLinearFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat });
+	colorSepTex = new THREE.WebGLRenderTarget(1024, 1024, {minFilter: THREE.LinearMipMapLinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
+	
 	shader = new THREE.ShaderMaterial({
 		uniforms:{
 			tex: {type: 't', value: blurVTex},
-			mask: {type: 't', value: loader.load('images/mask.png')},
+			mask: {type: 't', value: waterTex},
 			time: {type: 'f', value: 0}
 			
 		},
@@ -78,9 +96,10 @@ function init(){
 
 	threshShader = new THREE.ShaderMaterial({
 		uniforms:{
-			tex0: {type: 't', value: loader.load('water.jpg')},
+			tex0: {type: 't', value: waterTex},
 			time: {type: 'f', value: 0},
-			fadeOut: { type: 'f', value:0}
+			fadeOut: { type: 'f', value:0},
+			res: {type: 'v2', value: new THREE.Vector2(1.5/w, 1.5/h)},
 		},
 		vertexShader: document.getElementById('vertexShader').textContent,
 		fragmentShader: document.getElementById('threshShader').textContent,
@@ -101,7 +120,7 @@ function init(){
 	blurHShader = new THREE.ShaderMaterial({
 		uniforms:{
 			srcTex: {type: 't', value: colorSepTex},
-			step: {type: 'v2', value: new THREE.Vector2(0.15/w, 0.15/h)}
+			step: {type: 'v2', value: new THREE.Vector2(0.1/w, 0.1/h)}
 		},
 		vertexShader: document.getElementById('vertexShader').textContent,
 		fragmentShader: document.getElementById('blurH').textContent
@@ -110,7 +129,7 @@ function init(){
 	blurVShader = new THREE.ShaderMaterial({
 		uniforms:{
 			srcTex: {type: 't', value: blurHTex},
-			step: {type: 'v2', value: new THREE.Vector2(0.15/w, 0.15/h)}
+			step: {type: 'v2', value: new THREE.Vector2(0.1/w, 0.1/h)}
 		},
 		vertexShader: document.getElementById('vertexShader').textContent,
 		fragmentShader: document.getElementById('blurV').textContent
@@ -138,7 +157,7 @@ function init(){
 	orthoPlane = new THREE.Mesh(screenGeometry, blurVShader);
 	blurVScene.add(orthoPlane);
 
-	renderer = new THREE.WebGLRenderer({ alpha: true , antiAlias: true});
+	renderer = new THREE.WebGLRenderer({ alpha: true , antiAlias: true, preserveDrawingBuffer: true});
 	// renderer.clearColor( 0x000000, 0);
 	renderer.setSize(w, h);
 	container.appendChild( renderer.domElement);
@@ -156,6 +175,7 @@ var counter = 1;
 var opacityCounter = 1;
 var timeInc = 0;
 var fadeOut = 0;
+var recoCounter = 0;
 
 function animate(){
 	window.requestAnimationFrame(animate);
@@ -188,6 +208,13 @@ function animate(){
 	counter++;
 	timeInc = ((timeInc + 0.001) % 1);
 	opacityCounter-=0.0007;
+	recoCounter++;
+	if(recoCounter % 1000 == 0){
+		recognizer.stop();
+		// recognizer.start();
+	}
+
+
 }
 
 function render(){
@@ -220,6 +247,7 @@ recognizer.interimResults = true;
 
 recognizer.onresult = function(event){
 	var said = [];
+	console.log(event);
 	if(event.results[event.results.length-1].isFinal == true){
 	var saidText = event.results[event.results.length-1][0].transcript;
 	// $("#wordBox").empty().append(saidText.toUpperCase());
@@ -283,7 +311,7 @@ recognizer.onresult = function(event){
 				// for(var i =0; i<numImages; i++){
 					// loadImage(parsedUrls[i],400,300, "body");
 					var randUrl = Math.floor(Math.random()*parsedUrls.length);
-					loader.load(parsedUrls[0], function(texture){
+					loader.load(parsedUrls[randUrl], function(texture){
 						
 						//delete all old images
 						// scene.children = [];
@@ -347,6 +375,7 @@ recognizer.onresult = function(event){
 
 recognizer.onerror = function(event) {
 	console.log(event.error);
+	recognizer.start();
 };
 
 recognizer.onend = function(){
