@@ -6,10 +6,15 @@
 // };
 
 				
-var proxyUrl = "http://localhost/~adamferriss/getNouns/proxy.php?url=";
+// var proxyUrl = "http://localhost/~adamferriss/getNouns/proxy.php?url=";
+var proxyUrl = window.location.href + "proxy.php?url=";
 
 var container, scene, renderer, controls, camera, light, plane, shader, loader;
-var orthoScene, orthoCamera, rtt, maskShader;
+var orthoScene, orthoCamera, rtt, maskShader, threshShader;
+var colorSepScene, colorSepTex, colorSepShader;
+var blurHScene, blurVScene;
+var blurHTex, blurVTex;
+var blurHShader, blurVShader;
 
 var w = window.innerWidth;
 var h = window.innerHeight;
@@ -23,6 +28,7 @@ window.addEventListener( 'resize', onWindowResize, false );
 function onDocumentMouseDown(event){
 	//console.log(camControls);
 	 	// console.log(scene.children);
+	 	console.log(threshShader.uniforms.tex.value);
 }
 
 function onWindowResize() {
@@ -37,14 +43,23 @@ function init(){
 
 	scene = new THREE.Scene();
 	orthoScene = new THREE.Scene();
+	blurHScene = new THREE.Scene();
+	blurVScene = new THREE.Scene();
+	colorSepScene = new THREE.Scene();
 
 	rtt = new THREE.WebGLRenderTarget( w,h, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
-	loader = new THREE.TextureLoader();
+	blurHTex = new THREE.WebGLRenderTarget(w, h, {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
+	blurVTex = new THREE.WebGLRenderTarget(w, h, {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
+	colorSepTex = new THREE.WebGLRenderTarget(w, h, {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
 
+	loader = new THREE.TextureLoader();
 
 	shader = new THREE.ShaderMaterial({
 		uniforms:{
-			tex: {type: 't', value: loader.load('water.jpg')}
+			tex: {type: 't', value: blurVTex},
+			mask: {type: 't', value: loader.load('images/mask.png')},
+			time: {type: 'f', value: 0}
+			
 		},
 		vertexShader: document.getElementById('vertexShader').textContent,
 		fragmentShader: document.getElementById('fragShader').textContent,
@@ -61,22 +76,70 @@ function init(){
 		side:THREE.DoubleSide
 	});
 
+	threshShader = new THREE.ShaderMaterial({
+		uniforms:{
+			tex0: {type: 't', value: loader.load('water.jpg')},
+			time: {type: 'f', value: 0},
+			fadeOut: { type: 'f', value:0}
+		},
+		vertexShader: document.getElementById('vertexShader').textContent,
+		fragmentShader: document.getElementById('threshShader').textContent,
+		side:THREE.DoubleSide
+	});
+
+	colorSepShader = new THREE.ShaderMaterial({
+		uniforms:{
+			tex0: {type: 't', value: rtt},
+			step: {type: 'v2', value: new THREE.Vector2(1.8/w, 1.8/h)},
+			time: {type: 'f', vale: 0}
+		},
+		vertexShader: document.getElementById('vertexShader').textContent,
+		fragmentShader: document.getElementById('colorSep').textContent,
+		side:THREE.DoubleSide
+	});
+
+	blurHShader = new THREE.ShaderMaterial({
+		uniforms:{
+			srcTex: {type: 't', value: colorSepTex},
+			step: {type: 'v2', value: new THREE.Vector2(0.15/w, 0.15/h)}
+		},
+		vertexShader: document.getElementById('vertexShader').textContent,
+		fragmentShader: document.getElementById('blurH').textContent
+	});
+
+	blurVShader = new THREE.ShaderMaterial({
+		uniforms:{
+			srcTex: {type: 't', value: blurHTex},
+			step: {type: 'v2', value: new THREE.Vector2(0.15/w, 0.15/h)}
+		},
+		vertexShader: document.getElementById('vertexShader').textContent,
+		fragmentShader: document.getElementById('blurV').textContent
+	});
+
 	camera = new THREE.PerspectiveCamera(45, w/h, 0.1,10000);
 	camera.position.z = 500;
 
 	orthoCamera = new THREE.OrthographicCamera(w/-2, w/2,  h/2, h/-2, -20000, 20000);
 
-
 	var screenGeometry = new THREE.PlaneBufferGeometry( w,h );
 	var plane = new THREE.Mesh(screenGeometry, shader);
-	plane.position.set(0,0,-1000);
+	// plane.position.set(0,0,-1000);
 	scene.add(plane);	
 
-	var orthoPlane = new THREE.Mesh(screenGeometry, maskShader);
+	var orthoPlane = new THREE.Mesh(screenGeometry, threshShader);
 	orthoScene.add(orthoPlane);
 
+	orthoPlane = new THREE.Mesh(screenGeometry, colorSepShader);
+	colorSepScene.add(orthoPlane);
+
+	orthoPlane = new THREE.Mesh(screenGeometry, blurHShader);
+	blurHScene.add(orthoPlane);
+
+	orthoPlane = new THREE.Mesh(screenGeometry, blurVShader);
+	blurVScene.add(orthoPlane);
+
 	renderer = new THREE.WebGLRenderer({ alpha: true , antiAlias: true});
-	renderer.clearColor( 0xffffff, 0);
+	// renderer.clearColor( 0x000000, 0);
 	renderer.setSize(w, h);
 	container.appendChild( renderer.domElement);
 
@@ -91,13 +154,16 @@ function init(){
 var inc = 5;
 var counter = 1;
 var opacityCounter = 1;
+var timeInc = 0;
+var fadeOut = 0;
+
 function animate(){
 	window.requestAnimationFrame(animate);
 	controls.update();
 	render();
 
 	for (var i = 0; i<scene.children.length; i++){
-		scene.children[i].position.z -= 5 ;
+		// scene.children[i].position.z -= 5 ;
 
 		if(scene.children[i].position.z < -10050){
 			 // scene.children[i].position.z = 1000;
@@ -109,14 +175,28 @@ function animate(){
 		// scene.children[i].scale.y += 0.002;
 
 	}
-	$("#wordBox").css('opacity', opacityCounter);
+	// $("#wordBox").css('opacity', opacityCounter);
+
+	threshShader.uniforms.time.value =  opacityCounter;
+	colorSepShader.uniforms.time.value =  opacityCounter;
+	shader.uniforms.time.value =  counter*0.005;
+
+	threshShader.uniforms.fadeOut.value = fadeOut;
+	if(opacityCounter < 0.0){
+		fadeOut+=0.001;
+	}
 	counter++;
-	opacityCounter-=0.0009;
+	timeInc = ((timeInc + 0.001) % 1);
+	opacityCounter-=0.0007;
 }
 
 function render(){
-	renderer.render(scene, camera, rtt, false);
-	renderer.render(orthoScene, orthoCamera);
+	
+	renderer.render(orthoScene, orthoCamera, rtt, false);
+	renderer.render(colorSepScene, orthoCamera, colorSepTex, false);
+	renderer.render(blurHScene, orthoCamera, blurHTex, false);
+	renderer.render(blurVScene, orthoCamera, blurVTex, false);
+	renderer.render(scene, orthoCamera);
 }
 
 function loadImage(path, width, height, target) {
@@ -136,16 +216,17 @@ window.SpeechRecognition = window.SpeechRecognition ||
 
 var recognizer = new window.SpeechRecognition();
 recognizer.continuous = true;
-recognizer.interimResults = false;
+recognizer.interimResults = true;
 
 recognizer.onresult = function(event){
 	var said = [];
+	if(event.results[event.results.length-1].isFinal == true){
 	var saidText = event.results[event.results.length-1][0].transcript;
-	$("#wordBox").empty().append(saidText.toUpperCase());
-	$("#wordBox").fadeTo(10,1,function(){
+	// $("#wordBox").empty().append(saidText.toUpperCase());
+	// $("#wordBox").fadeTo(10,1,function(){
 		// $("#wordBox").fadeTo(22000,0);
-	});
-	
+	// });
+	console.log(event.results[event.results.length-1]);
 	var words = lexer.lex(saidText);
 	var taggedWords = tagger.tag(words);
 	var nouns = "";
@@ -155,12 +236,12 @@ recognizer.onresult = function(event){
 	    var word = taggedWord[0];
 	    var tag = taggedWord[1];
 
-	    if(tag == 'NN' || tag == 'NNP' || tag == 'NNPS' || tag == 'NNS' || tag == 'JJ' || tag == 'JJR' || tag == 'JJS' || tag == 'CD'){
+	    // if(tag == 'NN' || tag == 'NNP' || tag == 'NNPS' || tag == 'NNS' || tag == 'JJ' || tag == 'JJR' || tag == 'JJS' || tag == 'CD'){
 	    	// nouns.push(word);
 	    	nouns += word;
 	    	// console.log(word);
 	    	indWords.push(word);
-	    }
+	    // }
    		  console.log(word + " /" + tag);
    		  nouns += " ";
 	}
@@ -169,7 +250,7 @@ recognizer.onresult = function(event){
 		nouns = "question mark";
 		indWords.push(nouns);
 		saidText = "???????";
-		$("#wordBox").empty().append(saidText.toUpperCase());
+		// $("#wordBox").empty().append(saidText.toUpperCase());
 	}
 	if (indWords.length >0){
 		
@@ -178,15 +259,15 @@ recognizer.onresult = function(event){
 		$.ajax({
 			type: 'POST',
 			url: 'getData.php',
-			async: true,
+			async: false,
 			cache: false,
 			data: {
 				text: saidText
 			},
 			timeout: 30000,
 			success: function(resp){
-
 				var parsed = JSON.parse(resp);
+
 				// console.log(parsed.results.length);
 				var urls = [];
 				for(var i = 0; i<parsed.results.length; i++){
@@ -195,35 +276,45 @@ recognizer.onresult = function(event){
 				}
 				// loadImage(urls[0], 400,300,"body");
 				var parsedUrls = parseHtml(urls);
-				var spacing = 0;
+				var spacing = 2000;
 				var textures = [];
 				
-				var numImages = 1;
-				for(var i =0; i<numImages; i++){
+				var numImages = 20;
+				// for(var i =0; i<numImages; i++){
 					// loadImage(parsedUrls[i],400,300, "body");
 					var randUrl = Math.floor(Math.random()*parsedUrls.length);
-					loader.load(parsedUrls[randUrl], function(texture){
+					loader.load(parsedUrls[0], function(texture){
 						
 						//delete all old images
-						scene.children = [];
-						opacityCounter = 1
-						var shade =  new THREE.ShaderMaterial({
-							uniforms:{
-								tex: {type: 't', value: texture}
-							},
-							vertexShader: document.getElementById('vertexShader').textContent,
-							fragmentShader: document.getElementById('fragShader').textContent
-						});
+						// scene.children = [];
+						opacityCounter = 1;
+						counter = 1;
+						fadeOut = 0;
+						threshShader.uniforms.tex0.value = texture;
+						// var shade =  new THREE.ShaderMaterial({
+						// 	// uniforms:{
+						// 	// 	tex: {type: 't', value: texture}
+						// 	// },
+						// 	// vertexShader: document.getElementById('vertexShader').textContent,
+						// 	// fragmentShader: document.getElementById('fragShader').textContent
+						// 	uniforms:{
+						// 		tex0: {type: 't', value:texture},
+						// 		time: {type: 'f', value: 0}
+						// 	},
+						// 	vertexShader: document.getElementById('vertexShader').textContent,
+						// 	fragmentShader: document.getElementById('threshShader').textContent,
+						// 	side:THREE.DoubleSide
+						// });
 
 						// textures.push(texture);
 						// shade.uniforms.tex.value = texture;
 
-						var screenGeometry = new THREE.PlaneBufferGeometry( w,h );
-						var plane = new THREE.Mesh(screenGeometry, shade);
-						var randX =0;// (Math.random()*w*2)-w;
-						var randY =0;// (Math.random()*h*2)-h;
+						// var screenGeometry = new THREE.PlaneBufferGeometry( w,h );
+						// var plane = new THREE.Mesh(screenGeometry, shade);
+						// var randX =0;// (Math.random()*w*2)-w;
+						// var randY =0;// (Math.random()*h*2)-h;
 
-						plane.position.set(randX,randY,spacing);
+						// plane.position.set(randX,randY,-1000);
 						
 						// if(scene.children.length>=35){
 						// 	 scene.children.splice(-i,1);
@@ -234,12 +325,12 @@ recognizer.onresult = function(event){
 						// 	plane.rotation.y = -45;
 						// }
 
-						scene.add(plane);	
-						spacing+=2000;
+						// scene.add(plane);	
+						// spacing+=2000;
 
 					});
 
-				}
+				// }
 				
 
 				// console.log(urls);
@@ -250,7 +341,7 @@ recognizer.onresult = function(event){
 		});
 	}
 
-
+}
 
 };
 

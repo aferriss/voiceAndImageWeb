@@ -1,5 +1,4 @@
 <?php
-
 function post($key){
 	if(isset($_POST[$key]))
 		return $_POST[$key];
